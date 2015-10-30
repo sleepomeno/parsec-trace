@@ -1,11 +1,8 @@
 name:                parsec-trace
 version:             0.0.0.1
-synopsis:            Add a trace to Parsec parsers.
+synopsis:            Add a hierarchical trace to Parsec parsers.
 description:
-   Manages a tree tracing the successful parsers in the Parsec user state.
-
-   
-
+   Manages a tree tracing the hierarchical run of successful parsers in the Parsec user state.
                     
 homepage:            http://github.com/sleepomeno/parsec-trace#readme
 license:             MIT
