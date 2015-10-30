@@ -1,7 +1,12 @@
 name:                parsec-trace
 version:             0.0.0.1
 synopsis:            Add a trace to Parsec parsers.
-description:         Please see README.md
+description:
+   Manages a tree tracing the successful parsers in the Parsec user state.
+
+   
+
+                    
 homepage:            http://github.com/sleepomeno/parsec-trace#readme
 license:             MIT
 license-file:        LICENSE
@@ -15,7 +20,7 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Text.Parsec.Trace.Tree
-  build-depends:       base >= 4.7 && < 5, parsec, rosezipper, mtl, containers
+  build-depends:       base >= 4.7 && < 5, parsec, rosezipper, containers, mtl
   default-language:    Haskell2010
 
 -- test-suite parsec-trace-test
