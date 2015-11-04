@@ -171,11 +171,26 @@ import Text.Parsec
 import Data.Tree
 import Data.Foldable
 import Data.String
-import Data.Tree.Zipper
 import Control.Monad.Trans
 import Data.Maybe
 
-type TraceTree a = TreePos Full a
+type TraceTree a = TreePos a
+
+-- | Points to a position in a tree
+data TreePos a = TreePos
+  { 
+    content  :: Tree a            -- ^ The tree of the current position
+  , siblings :: Forest a          -- ^ The siblings of the current position
+  , parents  :: [(a, Forest a)]   -- ^ The parents of the current position
+  } deriving (Show)
+
+insert :: a -> TreePos a -> TreePos a
+insert x (TreePos (Node c f) s p) = TreePos (Node x []) f ((c,s):p) 
+
+parent :: TreePos a -> Maybe (TreePos a)
+parent (TreePos c s p) = case p of
+  (a, f) : ps -> Just $ TreePos (Node a (s ++ [c])) f ps
+  []          -> Nothing
 
 -- | An instance of 'HasTraceTree' somehow refers to a 'TraceTree'
 --
@@ -227,7 +242,7 @@ _logExit f (TraceConfig t lEn lEx) = fmap (TraceConfig t lEn) (f lEx)
 
 -- | The value that can be used on initialisation of the Parsec user state
 initialTraceTree :: (IsString s) => TraceTree s
-initialTraceTree = fromTree (Node (fromString "") [])
+initialTraceTree = TreePos (Node (fromString "") []) [] []
 
 -- | Default configuration which logs nothing on entering/exiting and ignores the parser values
 -- Manipulate this default configuration with setters as 'setLogEnter' or lenses as '_logEnter'
@@ -251,13 +266,14 @@ traceWith (TraceConfig traceParser logEnter logExit) p = tracedWithLog tracePars
                      Maybe (u -> m s) ->
                      ParsecT t u m expr
     tracedWithLog f p logInit logExit = do
-        modifyT $ insert (Node (fromString "") []) . last . children
+        modifyT $ insert (fromString "") 
 
         forM_ logInit logP
 
         result <- p
 
-        modifyT $ modifyTree (\t -> t { rootLabel = f result })
+        let myModifyTree f (TreePos c s p) = (TreePos (f c) s p )
+        modifyT $ myModifyTree (\(Node _ s) -> Node (f result) s )
 
         forM_ logExit logP
 
@@ -265,16 +281,23 @@ traceWith (TraceConfig traceParser logEnter logExit) p = tracedWithLog tracePars
 
         return result
 
+unTree :: Tree a -> (a, Forest a)
+unTree (Node c f) =  (c, f)
+
+root pos = let (TreePos c _ _) = go pos in c
+   where
+    go pos' = maybe pos' go (parent pos)
+
 drawTraceTree :: HasTraceTree t a => (a -> String) -> t -> String
-drawTraceTree f = drawTree . fmap f . tree . getTrace 
+drawTraceTree f = drawTree . fmap f . unfoldTree unTree . root . getTrace
 
 drawTraceTree' :: HasTraceTree t String => t -> String
-drawTraceTree' = drawTree . tree . getTrace 
+drawTraceTree' = drawTree . unfoldTree unTree . root . getTrace 
 
 getTraceTree :: (HasTraceTree t s, IsString s) => t -> Tree s
-getTraceTree = tree . getTrace 
+getTraceTree = unfoldTree unTree . root . getTrace
 
-modifyT :: (Monad m, HasTraceTree u s) => (TreePos Full s -> TreePos Full s) -> ParsecT t u m ()
+modifyT :: (Monad m, HasTraceTree u s) => (TraceTree s -> TraceTree s) -> ParsecT t u m ()
 modifyT = modifyState . modTrace
 
 -- | Use 'logP' to log a monadic value in the 'TraceTree' as a leaf of the current parser
@@ -282,7 +305,4 @@ logP :: (Monad m, HasTraceTree u s, IsString s) => (u -> m s) -> ParsecT t u m (
 logP action = do
   s <- getState
   result <- lift $ action s
-  modifyT $ fromJust . parent . insert (Node result []) . last . children
-
-  
-
+  modifyT $ fromJust . parent . insert result
