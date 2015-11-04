@@ -174,48 +174,22 @@ import Data.String
 import Control.Monad.Trans
 import Data.Maybe
 
--- type TraceTree a = TreePos Full a
-type TraceTree a = MyTreePos a
+type TraceTree a = TreePos a
 
--- | Position which does not point to a tree (e.g., it is between two trees).
--- data MyEmpty a    = MyE deriving (Read,Show,Eq)
-
--- -- | Position which points to a tree.
--- newtype MyFull a  = MyF { unMyF :: Tree a } deriving (Read,Show,Eq)
-
-
--- TODO show with quickqueck, that my mytreepos implementation is
-                   -- equivalent to rosezipper --> maybe even
-                   -- equational reasoning?
-
--- mytree1 = MyTree 1 [mytree2, mytree3]
--- mytree2 = MyTree 2 [mytree4, mytree5]
--- mytree3 = MyTree 3 [mytree6]
--- mytree4 = MyTree 4 []
--- mytree5 = MyTree 5 []
--- mytree6 = MyTree 6 []
--- mytree7 = MyTree 7 [mytree8]
--- mytree8 = MyTree 8 []
-
--- mytreepos1 = MyTreePos mytree1 [] []
-
-
--- data MyTree a = MyTree a (MyForest a) deriving (Show)
-type MyTree a = Tree a
-type MyForest a = [MyTree a]
-data MyTreePos a = MyTreePos
+-- | Points to a position in a tree
+data TreePos a = TreePos
   { 
-    content :: MyTree a
-  , siblings :: MyForest a
-  , myparents  :: [(a, MyForest a)]
+    content  :: Tree a            -- ^ The tree of the current position
+  , siblings :: Forest a          -- ^ The siblings of the current position
+  , parents  :: [(a, Forest a)]   -- ^ The parents of the current position
   } deriving (Show)
 
-myinsert :: a -> MyTreePos a -> MyTreePos a
-myinsert x (MyTreePos (Node c f) sibl parents) = MyTreePos (Node x []) f ((c, sibl):parents) 
+insert :: a -> TreePos a -> TreePos a
+insert x (TreePos (Node c f) s p) = TreePos (Node x []) f ((c,s):p) 
 
-myparent :: MyTreePos a -> Maybe (MyTreePos a)
-myparent (MyTreePos c s p) = case p of
-  (a, f) : ps -> Just $ MyTreePos (Node a (s ++ [c])) f ps
+parent :: TreePos a -> Maybe (TreePos a)
+parent (TreePos c s p) = case p of
+  (a, f) : ps -> Just $ TreePos (Node a (s ++ [c])) f ps
   []          -> Nothing
 
 -- | An instance of 'HasTraceTree' somehow refers to a 'TraceTree'
@@ -268,8 +242,7 @@ _logExit f (TraceConfig t lEn lEx) = fmap (TraceConfig t lEn) (f lEx)
 
 -- | The value that can be used on initialisation of the Parsec user state
 initialTraceTree :: (IsString s) => TraceTree s
--- initialTraceTree = fromTree (Node (fromString "") [])
-initialTraceTree = MyTreePos (Node (fromString "") []) [] []
+initialTraceTree = TreePos (Node (fromString "") []) [] []
 
 -- | Default configuration which logs nothing on entering/exiting and ignores the parser values
 -- Manipulate this default configuration with setters as 'setLogEnter' or lenses as '_logEnter'
@@ -293,48 +266,36 @@ traceWith (TraceConfig traceParser logEnter logExit) p = tracedWithLog tracePars
                      Maybe (u -> m s) ->
                      ParsecT t u m expr
     tracedWithLog f p logInit logExit = do
-        -- modifyT $ insert (Node (fromString "") []) . last . children
-        modifyT $ myinsert (fromString "") 
+        modifyT $ insert (fromString "") 
 
         forM_ logInit logP
 
         result <- p
 
-        -- modifyT $ modifyTree (\t -> t { rootLabel = f result })
-        let myModifyTree f (MyTreePos c s p) = (MyTreePos (f c) s p )
+        let myModifyTree f (TreePos c s p) = (TreePos (f c) s p )
         modifyT $ myModifyTree (\(Node _ s) -> Node (f result) s )
 
         forM_ logExit logP
 
-        -- modifyT $ fromJust . parent
-        modifyT $ fromJust . myparent
+        modifyT $ fromJust . parent
 
         return result
 
-mytree :: MyTree a -> (a, MyForest a)
-mytree (Node v c) =  (v, c)
+unTree :: Tree a -> (a, Forest a)
+unTree (Node c f) =  (c, f)
 
-
--- myToTree :: MyTree a -> Tree a
--- myToTree (MyTree a s) = Node a (map myToTree s)
-
--- myroot :: MyTreePos a -> Tree a
--- myroot pos = let (MyTreePos c _ _) = go pos in myToTree c
-myroot pos = let (MyTreePos c _ _) = go pos in c
+root pos = let (TreePos c _ _) = go pos in c
    where
-    go pos' = maybe pos' go (myparent pos)
+    go pos' = maybe pos' go (parent pos)
 
 drawTraceTree :: HasTraceTree t a => (a -> String) -> t -> String
--- drawTraceTree f = drawTree . fmap f . tree . getTrace 
-drawTraceTree f = drawTree . fmap f . unfoldTree mytree . myroot . getTrace
+drawTraceTree f = drawTree . fmap f . unfoldTree unTree . root . getTrace
 
 drawTraceTree' :: HasTraceTree t String => t -> String
--- drawTraceTree' = drawTree . tree . getTrace 
-drawTraceTree' = drawTree . unfoldTree mytree . myroot . getTrace 
+drawTraceTree' = drawTree . unfoldTree unTree . root . getTrace 
 
 getTraceTree :: (HasTraceTree t s, IsString s) => t -> Tree s
--- getTraceTree = tree . getTrace 
-getTraceTree = unfoldTree mytree . myroot . getTrace
+getTraceTree = unfoldTree unTree . root . getTrace
 
 modifyT :: (Monad m, HasTraceTree u s) => (TraceTree s -> TraceTree s) -> ParsecT t u m ()
 modifyT = modifyState . modTrace
@@ -344,8 +305,4 @@ logP :: (Monad m, HasTraceTree u s, IsString s) => (u -> m s) -> ParsecT t u m (
 logP action = do
   s <- getState
   result <- lift $ action s
-  -- modifyT $ fromJust . parent . insert (Node result []) . last . children
-  modifyT $ fromJust . myparent . myinsert result
-
-  
-
+  modifyT $ fromJust . parent . insert result
