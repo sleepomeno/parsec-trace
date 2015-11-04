@@ -188,19 +188,20 @@ type TraceTree a = MyTreePos a
                    -- equivalent to rosezipper --> maybe even
                    -- equational reasoning?
 
-mytree1 = MyTree 1 [mytree2, mytree3]
-mytree2 = MyTree 2 [mytree4, mytree5]
-mytree3 = MyTree 3 [mytree6]
-mytree4 = MyTree 4 []
-mytree5 = MyTree 5 []
-mytree6 = MyTree 6 []
-mytree7 = MyTree 7 [mytree8]
-mytree8 = MyTree 8 []
+-- mytree1 = MyTree 1 [mytree2, mytree3]
+-- mytree2 = MyTree 2 [mytree4, mytree5]
+-- mytree3 = MyTree 3 [mytree6]
+-- mytree4 = MyTree 4 []
+-- mytree5 = MyTree 5 []
+-- mytree6 = MyTree 6 []
+-- mytree7 = MyTree 7 [mytree8]
+-- mytree8 = MyTree 8 []
 
-mytreepos1 = MyTreePos mytree1 [] []
+-- mytreepos1 = MyTreePos mytree1 [] []
 
 
-data MyTree a = MyTree a (MyForest a) deriving (Show)
+-- data MyTree a = MyTree a (MyForest a) deriving (Show)
+type MyTree a = Tree a
 type MyForest a = [MyTree a]
 data MyTreePos a = MyTreePos
   { 
@@ -210,11 +211,11 @@ data MyTreePos a = MyTreePos
   } deriving (Show)
 
 myinsert :: a -> MyTreePos a -> MyTreePos a
-myinsert x (MyTreePos (MyTree c f) sibl parents) = MyTreePos (MyTree x []) f ((c, sibl):parents) 
+myinsert x (MyTreePos (Node c f) sibl parents) = MyTreePos (Node x []) f ((c, sibl):parents) 
 
 myparent :: MyTreePos a -> Maybe (MyTreePos a)
 myparent (MyTreePos c s p) = case p of
-  (a, f) : ps -> Just $ MyTreePos (MyTree a (s ++ [c])) f ps
+  (a, f) : ps -> Just $ MyTreePos (Node a (s ++ [c])) f ps
   []          -> Nothing
 
 -- | An instance of 'HasTraceTree' somehow refers to a 'TraceTree'
@@ -268,7 +269,7 @@ _logExit f (TraceConfig t lEn lEx) = fmap (TraceConfig t lEn) (f lEx)
 -- | The value that can be used on initialisation of the Parsec user state
 initialTraceTree :: (IsString s) => TraceTree s
 -- initialTraceTree = fromTree (Node (fromString "") [])
-initialTraceTree = MyTreePos (MyTree (fromString "") []) [] []
+initialTraceTree = MyTreePos (Node (fromString "") []) [] []
 
 -- | Default configuration which logs nothing on entering/exiting and ignores the parser values
 -- Manipulate this default configuration with setters as 'setLogEnter' or lenses as '_logEnter'
@@ -301,7 +302,7 @@ traceWith (TraceConfig traceParser logEnter logExit) p = tracedWithLog tracePars
 
         -- modifyT $ modifyTree (\t -> t { rootLabel = f result })
         let myModifyTree f (MyTreePos c s p) = (MyTreePos (f c) s p )
-        modifyT $ myModifyTree (\(MyTree c s) -> MyTree (f result) s )
+        modifyT $ myModifyTree (\(Node _ s) -> Node (f result) s )
 
         forM_ logExit logP
 
@@ -311,7 +312,7 @@ traceWith (TraceConfig traceParser logEnter logExit) p = tracedWithLog tracePars
         return result
 
 mytree :: MyTree a -> (a, MyForest a)
-mytree (MyTree v c) =  (v, c)
+mytree (Node v c) =  (v, c)
 
 
 -- myToTree :: MyTree a -> Tree a
@@ -321,7 +322,7 @@ mytree (MyTree v c) =  (v, c)
 -- myroot pos = let (MyTreePos c _ _) = go pos in myToTree c
 myroot pos = let (MyTreePos c _ _) = go pos in c
    where
-    go pos = maybe pos go (myparent pos)
+    go pos' = maybe pos' go (myparent pos)
 
 drawTraceTree :: HasTraceTree t a => (a -> String) -> t -> String
 -- drawTraceTree f = drawTree . fmap f . tree . getTrace 
