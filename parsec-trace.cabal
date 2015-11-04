@@ -1,5 +1,5 @@
 name:                parsec-trace
-version:             0.0.0.1
+version:             0.0.0.2
 synopsis:            Add a hierarchical trace to Parsec parsers.
 description:
    Manages a tree tracing the hierarchical run of successful parsers in the Parsec user state.

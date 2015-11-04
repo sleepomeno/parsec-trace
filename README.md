@@ -11,7 +11,7 @@ Sometimes it is not trivial to understand when/why the parser state changes when
 ```haskell
 {-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, NoMonomorphismRestriction  #-}
 
-module Lib where
+module UseParsecTrace where
 
 import Text.Parsec hiding (parse)
 import qualified Text.Parsec.Trace.Tree as T
